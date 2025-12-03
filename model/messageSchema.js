@@ -4,12 +4,11 @@ const messageSchema = new mongoose.Schema(
     {
         senderType: {
             type: String,
-            enum: ["client", "admin"],
+            enum: ["client", "admin","User"],
             required: true
         },
         sender: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User", // only for admin
+            type: String, // only for admin
             default: null
         },
         text: {

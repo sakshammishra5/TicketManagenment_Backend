@@ -3,16 +3,15 @@ const router = express.Router();
 const Client = require("../model/clientSchema")
 const Ticket = require("../model/ticketSchema");
 const verifyToken = require("../middleware/authMiddleware");
+const User =require("../model/userSchema")
 
 router.post("/createTicket", async (req, res) => {
   try {
-
-    const { name, phone, email, message } = req.body;
+    console.log("CreateTicket req.body:-", req.body)
     const adminId = "692c3e61fef7bf8244b27441"; // who owns this chatbot
-
+    const { name, phone, email, message } = req.body;
     let client = await Client.findOne({ email, owner: adminId });
-
-
+    console.log("client",client)
     // client creation
     if (!client) {
       client = await Client.create({ name, phone, email, owner: adminId });
@@ -28,17 +27,20 @@ router.post("/createTicket", async (req, res) => {
       messages: [
         {
           senderType: "client",
+          sender:client.name,
           text: message,
         },
       ]
     });
 
+    console.log(ticket)
     res.status(201).json({
       clientId: client._id,
       ticketId: ticket._id,
       ticket,
     });
   } catch (error) {
+    console.log("error",error)
     res.status(500).json({ message: "Failed to start chat" });
 
   }
@@ -47,12 +49,12 @@ router.post("/createTicket", async (req, res) => {
 router.get("/getTickets", verifyToken, async (req, res) => {
   try {
     const adminId = req.user._id; // logged-in admin or teammate
-
-    const tickets = await Ticket.find({ owner: adminId })
+    console.log("getTicket adminId", adminId)
+    const tickets = await Ticket.find({ assignedTo: adminId })
       .populate("client", "name phone email")   // include client details
       .populate("assignedTo", "firstName lastName email") // who is handling the ticket
       .sort({ createdAt: -1 }); // newest first
-
+  
     res.status(200).json(tickets);
   } catch (error) {
     console.error(error);
@@ -65,13 +67,12 @@ router.get("/getParticularTicket/:ticketId", verifyToken, async (req, res) => {
   try {
     
     const { ticketId } = req.params;
-    console.log(ticketId)
     const adminId = req.user._id; // logged-in admin or teammate
 
     // Find ticket and ensure it belongs to this admin's workspace
     const ticket = await Ticket.findOne({
       _id: ticketId,
-      owner: adminId,   // important: prevents other admins from accessing
+      assignedTo: adminId,   // important: prevents other admins from accessing
     })
       .populate("client", "name phone email")
       .populate("assignedTo", "firstName lastName email role")
@@ -88,7 +89,6 @@ router.get("/getParticularTicket/:ticketId", verifyToken, async (req, res) => {
 
     res.status(200).json(ticket);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Failed to fetch ticket" });
   }
 })
@@ -97,7 +97,6 @@ router.get("/getParticularTicket/:ticketId", verifyToken, async (req, res) => {
 // admin sending the reply
 router.post("/reply/:ticketId", verifyToken, async (req, res) => {
   try {
-    console.log("req.body ",req.body)
     const { ticketId } = req.params;
     const { text } = req.body;
     const userId = req.user._id; // admin or teammate sending the reply
@@ -120,10 +119,12 @@ router.post("/reply/:ticketId", verifyToken, async (req, res) => {
       });
     }
 
+    let replier=await User.findById(userId)
+
     // Add admin/teammate message
     ticket.messages.push({
-      senderType: "admin",
-      sender: userId,
+      senderType: replier.role,
+      sender: replier.name,
       text,
     });
 
@@ -145,6 +146,7 @@ router.post("/reply/:ticketId", verifyToken, async (req, res) => {
 //  Route: Assign ticket to a teammate
 router.patch("/assign/:ticketId", verifyToken, async (req, res) => {
   try {
+    console.log("assign ticket req.body ", req.body)
     const { ticketId } = req.params;
     const { userId } = req.body; // teammate id to assign to
     const currentUserId = req.user._id; // logged-in admin
