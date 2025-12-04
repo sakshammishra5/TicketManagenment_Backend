@@ -124,7 +124,7 @@ router.post("/reply/:ticketId", verifyToken, async (req, res) => {
     // Add admin/teammate message
     ticket.messages.push({
       senderType: replier.role,
-      sender: replier.name,
+      sender: replier.firstName,
       text,
     });
 
